@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Zenfuture AI Assistant</title>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --zf-primary: #1e293b; /* Dark Navy */
+            --zf-accent: #3b82f6;  /* Tech Blue */
+            --zf-bg: #f8fafc;
+            --zf-text-main: #1e293b;
+            --zf-text-muted: #64748b;
+            --zf-glass: rgba(255, 255, 255, 0.9);
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f0f2f5;
+            background-image: radial-gradient(#d1d5db 1px, transparent 1px);
+            background-size: 40px 40px;
+            height: 100vh;
+        }
+
+        /* Test Card for Demo */
+        .demo-container {
+            padding: 50px;
+            text-align: center;
+        }
+
+        /* --- Chat Bubble --- */
+        #zf-chat-trigger {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            width: 60px;
+            height: 60px;
+            background: var(--zf-primary);
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+            transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            z-index: 10000;
+        }
+
+        #zf-chat-trigger:hover {
+            transform: scale(1.1) rotate(5deg);
+        }
+
+        #zf-chat-trigger svg {
+            width: 28px;
+            height: 28px;
+            fill: currentColor;
+        }
+
+        /* --- Chat Window --- */
+        #zf-chat-window {
+            position: fixed;
+            bottom: 105px;
+            right: 30px;
+            width: 380px;
+            height: 600px;
+            max-height: calc(100vh - 150px);
+            background: var(--zf-glass);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 24px;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.15);
+            display: none;
+            flex-direction: column;
+            overflow: hidden;
+            z-index: 10000;
+            animation: slideIn 0.4s ease-out;
+        }
+
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(30px) scale(0.95); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+
+        /* Header */
+        #zf-chat-header {
+            background: var(--zf-primary);
+            color: white;
+            padding: 20px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .zf-avatar {
+            width: 40px;
+            height: 40px;
+            background: #fff;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            color: var(--zf-primary);
+        }
+
+        .zf-header-info {
+            flex: 1;
+        }
+
+        .zf-header-info h4 {
+            margin: 0;
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        .zf-status {
+            font-size: 12px;
+            opacity: 0.8;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .zf-status::before {
+            content: "";
+            width: 8px;
+            height: 8px;
+            background: #22c55e;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        #zf-chat-close {
+            cursor: pointer;
+            opacity: 0.7;
+            transition: 0.2s;
+        }
+
+        #zf-chat-close:hover { opacity: 1; }
+
+        /* Messages Area */
+        #zf-chat-messages {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            background: rgba(248, 250, 252, 0.5);
+        }
+
+        .zf-msg {
+            max-width: 80%;
+            padding: 12px 16px;
+            border-radius: 16px;
+            font-size: 14px;
+            line-height: 1.5;
+            position: relative;
+        }
+
+        .zf-msg.bot {
+            background: white;
+            color: var(--zf-text-main);
+            align-self: flex-start;
+            border-bottom-left-radius: 4px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        }
+
+        .zf-msg.user {
+            background: var(--zf-primary);
+            color: white;
+            align-self: flex-end;
+            border-bottom-right-radius: 4px;
+            box-shadow: 0 4px 12px rgba(30, 41, 59, 0.2);
+        }
+
+        /* Typing Animation */
+        .typing {
+            display: none;
+            padding: 12px 16px;
+            background: white;
+            border-radius: 16px;
+            width: fit-content;
+            gap: 4px;
+        }
+
+        .dot {
+            width: 6px;
+            height: 6px;
+            background: #cbd5e1;
+            border-radius: 50%;
+            animation: bounce 1.4s infinite;
+        }
+        .dot:nth-child(2) { animation-delay: 0.2s; }
+        .dot:nth-child(3) { animation-delay: 0.4s; }
+
+        @keyframes bounce {
+            0%, 80%, 100% { transform: translateY(0); }
+            40% { transform: translateY(-6px); }
+        }
+
+        /* Input Area */
+        #zf-chat-input-container {
+            padding: 20px;
+            background: white;
+            border-top: 1px solid #f1f5f9;
+        }
+
+        .input-wrapper {
+            display: flex;
+            background: #f1f5f9;
+            padding: 8px 12px;
+            border-radius: 12px;
+            align-items: center;
+            transition: 0.3s;
+        }
+
+        .input-wrapper:focus-within {
+            background: #fff;
+            box-shadow: 0 0 0 2px var(--zf-accent);
+        }
+
+        #zf-chat-input {
+            flex: 1;
+            border: none;
+            background: transparent;
+            padding: 8px;
+            font-family: inherit;
+            outline: none;
+            font-size: 14px;
+        }
+
+        #zf-chat-send {
+            background: var(--zf-primary);
+            color: white;
+            border: none;
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: 0.2s;
+        }
+
+        #zf-chat-send:hover {
+            background: var(--zf-accent);
+        }
+
+        /* Scrollbar */
+        #zf-chat-messages::-webkit-scrollbar { width: 5px; }
+        #zf-chat-messages::-webkit-scrollbar-track { background: transparent; }
+        #zf-chat-messages::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+
+        @media (max-width: 480px) {
+            #zf-chat-window {
+                width: calc(100% - 40px);
+                bottom: 80px;
+                right: 20px;
+                height: 70vh;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="demo-container">
+        <h1>Zenfuture Technologies</h1>
+    </div>
+
+    <!-- Chat Trigger Bubble -->
+    <div id="zf-chat-trigger">
+        <svg viewBox="0 0 24 24"><path d="M12 2C6.477 2 2 6.477 2 12c0 1.821.487 3.53 1.338 5L2.015 21.985l4.985-1.323c1.47.851 3.179 1.338 5 1.338 5.523 0 10-4.477 10-10S17.523 2 12 2zm0 18c-1.477 0-2.873-.406-4.077-1.112l-2.71.721.722-2.711A7.95 7.95 0 014 12c0-4.411 3.589-8 8-8s8 3.589 8 8-3.589 8-8 8z"/></svg>
+    </div>
+
+    <!-- Chat Window -->
+    <div id="zf-chat-window">
+        <div id="zf-chat-header">
+            <div class="zf-avatar">Z</div>
+            <div class="zf-header-info">
+                <h4>Zenfuture AI</h4>
+                <div class="zf-status">Online</div>
+            </div>
+            <div id="zf-chat-close">
+                <svg width="20" height="20" fill="white" viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+            </div>
+        </div>
+
+        <div id="zf-chat-messages">
+            <!-- Messages appear here -->
+        </div>
+
+        <div id="typing-indicator" class="zf-msg bot typing">
+            <div class="dot"></div><div class="dot"></div><div class="dot"></div>
+        </div>
+
+        <div id="zf-chat-input-container">
+            <div class="input-wrapper">
+                <input id="zf-chat-input" type="text" placeholder="Ask about our services..." autocomplete="off" />
+                <button id="zf-chat-send">
+                    <svg width="16" height="16" fill="white" viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        (function () {
+            const API_BASE_URL = "http://localhost:8000";
+            const trigger = document.getElementById("zf-chat-trigger");
+            const chatWindow = document.getElementById("zf-chat-window");
+            const closeBtn = document.getElementById("zf-chat-close");
+            const messagesEl = document.getElementById("zf-chat-messages");
+            const typingIndicator = document.getElementById("typing-indicator");
+            const input = document.getElementById("zf-chat-input");
+            const sendBtn = document.getElementById("zf-chat-send");
+
+            let sessionId = localStorage.getItem("zf_session_id") || "web-" + crypto.randomUUID();
+            localStorage.setItem("zf_session_id", sessionId);
+
+            let hasOpened = false;
+
+            // Toggle Window
+            trigger.addEventListener("click", () => {
+                const isHidden = chatWindow.style.display === "none" || chatWindow.style.display === "";
+                chatWindow.style.display = isHidden ? "flex" : "none";
+                
+                if (isHidden && !hasOpened) {
+                    hasOpened = true;
+                    showBotTyping(true);
+                    setTimeout(() => sendMessage(""), 1000); // Initial Greeting
+                }
+            });
+
+            closeBtn.addEventListener("click", () => {
+                chatWindow.style.display = "none";
+            });
+
+            function showBotTyping(show) {
+                typingIndicator.style.display = show ? "flex" : "none";
+                messagesEl.scrollTop = messagesEl.scrollHeight;
+            }
+
+            function appendMessage(text, sender) {
+                if (!text) return;
+                const div = document.createElement("div");
+                div.className = `zf-msg ${sender}`;
+                div.textContent = text;
+                messagesEl.appendChild(div);
+                messagesEl.scrollTop = messagesEl.scrollHeight;
+            }
+
+            async function sendMessage(text) {
+                if (text) {
+                    appendMessage(text, "user");
+                    showBotTyping(true);
+                }
+
+                try {
+                    const res = await fetch(`${API_BASE_URL}/api/chat/website`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ session_id: sessionId, message: text }),
+                    });
+                    const data = await res.json();
+                    
+                    showBotTyping(false);
+                    appendMessage(data.reply, "bot");
+                } catch (err) {
+                    showBotTyping(false);
+                    appendMessage("Our systems are a bit busy. Please try again later.", "bot");
+                }
+            }
+
+            sendBtn.addEventListener("click", () => {
+                const text = input.value.trim();
+                if (!text) return;
+                input.value = "";
+                sendMessage(text);
+            });
+
+            input.addEventListener("keydown", (e) => {
+                if (e.key === "Enter") sendBtn.click();
+            });
+        })();
+    </script>
+</body>
+</html>

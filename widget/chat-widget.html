@@ -1,0 +1,111 @@
+<!--
+  Zenfuture Technologies - Website Chat Widget
+  ---------------------------------------------
+  Drop this snippet before </body> on any page of the existing website.
+  Update API_BASE_URL to point to your deployed FastAPI backend.
+-->
+<div id="zf-chat-bubble">💬</div>
+<div id="zf-chat-window">
+  <div id="zf-chat-header">Zenfuture Technologies
+    <span id="zf-chat-close">&times;</span>
+  </div>
+  <div id="zf-chat-messages"></div>
+  <div id="zf-chat-input-row">
+    <input id="zf-chat-input" type="text" placeholder="Type a message..." />
+    <button id="zf-chat-send">Send</button>
+  </div>
+</div>
+
+<style>
+  #zf-chat-bubble {
+    position: fixed; bottom: 20px; right: 20px; width: 56px; height: 56px;
+    background: #2E4053; color: #fff; border-radius: 50%; display: flex;
+    align-items: center; justify-content: center; font-size: 24px; cursor: pointer;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.2); z-index: 9999;
+  }
+  #zf-chat-window {
+    position: fixed; bottom: 90px; right: 20px; width: 320px; height: 420px;
+    background: #fff; border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.25);
+    display: none; flex-direction: column; overflow: hidden; z-index: 9999;
+    font-family: Arial, sans-serif;
+  }
+  #zf-chat-header {
+    background: #2E4053; color: #fff; padding: 12px; font-weight: bold;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  #zf-chat-close { cursor: pointer; }
+  #zf-chat-messages { flex: 1; padding: 10px; overflow-y: auto; font-size: 14px; }
+  .zf-msg { margin-bottom: 8px; padding: 8px 10px; border-radius: 8px; max-width: 80%; }
+  .zf-msg.user { background: #DCF8C6; margin-left: auto; text-align: right; }
+  .zf-msg.bot { background: #f0f0f0; margin-right: auto; }
+  #zf-chat-input-row { display: flex; border-top: 1px solid #eee; }
+  #zf-chat-input { flex: 1; border: none; padding: 10px; font-size: 14px; }
+  #zf-chat-send { border: none; background: #2E4053; color: #fff; padding: 0 14px; cursor: pointer; }
+</style>
+
+<script>
+(function () {
+  const API_BASE_URL = "http://localhost:8000"; // TODO: change to your deployed backend URL
+
+  const bubble = document.getElementById("zf-chat-bubble");
+  const chatWindow = document.getElementById("zf-chat-window");
+  const closeBtn = document.getElementById("zf-chat-close");
+  const messagesEl = document.getElementById("zf-chat-messages");
+  const input = document.getElementById("zf-chat-input");
+  const sendBtn = document.getElementById("zf-chat-send");
+
+  // Persist a per-visitor session id in the browser so the conversation
+  // (and lead-capture progress) survives across page loads.
+  let sessionId = localStorage.getItem("zf_session_id");
+  if (!sessionId) {
+    sessionId = "web-" + crypto.randomUUID();
+    localStorage.setItem("zf_session_id", sessionId);
+  }
+
+  let opened = false;
+
+  bubble.addEventListener("click", () => {
+    chatWindow.style.display = chatWindow.style.display === "flex" ? "none" : "flex";
+    chatWindow.style.flexDirection = "column";
+    if (!opened) {
+      opened = true;
+      sendMessage(""); // trigger the initial greeting
+    }
+  });
+  closeBtn.addEventListener("click", () => (chatWindow.style.display = "none"));
+
+  function appendMessage(text, sender) {
+    const div = document.createElement("div");
+    div.className = "zf-msg " + sender;
+    div.textContent = text;
+    messagesEl.appendChild(div);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+  }
+
+  async function sendMessage(text) {
+    if (text) appendMessage(text, "user");
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/chat/website`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ session_id: sessionId, message: text }),
+      });
+      const data = await res.json();
+      appendMessage(data.reply, "bot");
+    } catch (err) {
+      appendMessage("Sorry, something went wrong. Please try again.", "bot");
+    }
+  }
+
+  sendBtn.addEventListener("click", () => {
+    const text = input.value.trim();
+    if (!text) return;
+    input.value = "";
+    sendMessage(text);
+  });
+
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") sendBtn.click();
+  });
+})();
+</script>
