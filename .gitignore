@@ -1,0 +1,58 @@
+# Environments
+.env
+.env.*
+!.env.example
+.venv
+venv/
+ENV/
+env/
+env.bak/
+venv.bak/
+
+# SQLite databases
+*.sqlite
+*.sqlite3
+*.db
+
+# Alembic / Migrations (if you want to ignore local ini, uncomment)
+# alembic.ini
+
+# Postman
+*postman_collection.json
+*postman_environment.json
+Postman/
+
+# Python / Byte-compiled / Optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Distribution / packaging
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# IDEs and OS files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
