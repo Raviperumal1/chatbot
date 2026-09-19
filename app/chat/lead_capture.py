@@ -1,6 +1,7 @@
 import re
 from enum import Enum
-
+from sqlalchemy.orm.attributes import flag_modified
+from app.models import Conversation
 
 class Stage(str, Enum):
     ASK_NAME = "ask_name"
@@ -8,12 +9,8 @@ class Stage(str, Enum):
     ASK_PHONE = "ask_phone"
     CHATTING = "chatting"
 
-
 EMAIL_RE = re.compile(r"[^@\s]+@[^@\s]+\.[^@\s]+")
 PHONE_RE = re.compile(r"[\d+][\d\s\-()]{6,}\d")
-
-# session_key -> {"stage": Stage, "name": str, "email": str, "phone": str}
-SESSION_STORE: dict[str, dict] = {}
 
 WELCOME_MESSAGE = "Greetings from Zenfuture. Let's get started. May I have your name?"
 
@@ -31,50 +28,61 @@ INVALID_EMAIL_MESSAGE = "That email format doesn't look right. Please provide a 
 INVALID_PHONE_MESSAGE = "Please enter a valid phone number so we can ensure connectivity."
 
 
-def get_session(session_key: str) -> dict:
-    if session_key not in SESSION_STORE:
-        SESSION_STORE[session_key] = {
-            "stage": Stage.ASK_NAME,
-            "name": None,
-            "email": None,
-            "phone": None,
-        }
-    return SESSION_STORE[session_key]
+def get_session(conversation: Conversation) -> dict:
+    meta = conversation.metadata_ or {}
+    if "stage" not in meta:
+        meta["stage"] = Stage.ASK_NAME.value
+        meta["name"] = None
+        meta["email"] = None
+        meta["phone"] = None
+        conversation.metadata_ = meta
+    return conversation.metadata_
 
 
-def process_lead_capture(session_key: str, message: str, company_name: str) -> tuple[str, bool]:
+def _save_session(conversation: Conversation, session: dict):
+    conversation.metadata_ = session
+    flag_modified(conversation, "metadata_")
+
+
+def process_lead_capture(conversation: Conversation, message: str, company_name: str) -> tuple[str, bool]:
     """
-    Advances the lead-capture state machine by one turn.
+    Advances the lead-capture state machine by one turn using the Conversation database record.
 
     Returns (reply_text, is_still_capturing).
     is_still_capturing = True means the caller should NOT run the RAG/LLM step
     yet - we're still collecting name/email/phone.
     """
-    session = get_session(session_key)
+    session = get_session(conversation)
     stage = session["stage"]
     message = message.strip()
 
-    if stage == Stage.ASK_NAME:
+    if stage == Stage.ASK_NAME.value:
         # First message ever in this session: nothing to validate, just greet.
         if session["name"] is None and message == "":
             return WELCOME_MESSAGE.format(company_name=company_name), True
         session["name"] = message or "there"
-        session["stage"] = Stage.ASK_EMAIL
+        session["stage"] = Stage.ASK_EMAIL.value
+        _save_session(conversation, session)
         return ASK_EMAIL_MESSAGE.format(name=session["name"]), True
 
-    if stage == Stage.ASK_EMAIL:
+    if stage == Stage.ASK_EMAIL.value:
         if not EMAIL_RE.search(message):
             return INVALID_EMAIL_MESSAGE, True
         session["email"] = EMAIL_RE.search(message).group(0)
-        session["stage"] = Stage.ASK_PHONE
+        session["stage"] = Stage.ASK_PHONE.value
+        _save_session(conversation, session)
         return ASK_PHONE_MESSAGE, True
 
-    if stage == Stage.ASK_PHONE:
+    if stage == Stage.ASK_PHONE.value:
         if not PHONE_RE.search(message):
             return INVALID_PHONE_MESSAGE, True
         session["phone"] = PHONE_RE.search(message).group(0)
-        session["stage"] = Stage.CHATTING
+        session["stage"] = Stage.CHATTING.value
+        _save_session(conversation, session)
         return READY_MESSAGE.format(name=session["name"]), True
 
     # Stage.CHATTING - lead already captured, let the caller run the RAG/LLM step
+    if message == "":
+        return f"Welcome back, {session.get('name', 'there')}! How can I assist you today?", True
+        
     return "", False

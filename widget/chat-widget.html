@@ -1,13 +1,23 @@
 <!--
-  Zenfuture Technologies - Website Chat Widget
-  ---------------------------------------------
+  Zenfuture Technologies - Website & WhatsApp Chat Widget
+  --------------------------------------------------------
   Drop this snippet before </body> on any page of the existing website.
   Update API_BASE_URL to point to your deployed FastAPI backend.
 -->
-<div id="zf-chat-bubble">💬</div>
+<div id="zf-widget-container">
+  <a id="zf-wa-bubble" href="https://wa.me/15551234567?text=Hi" target="_blank" title="Chat on WhatsApp">
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="white"><path d="M12.012 2c-5.506 0-9.989 4.478-9.99 9.984 0 1.76.459 3.474 1.33 4.982l-1.413 5.163 5.286-1.386a9.943 9.943 0 004.782 1.226h.005c5.506 0 9.989-4.478 9.99-9.984 0-2.667-1.037-5.176-2.922-7.062A9.925 9.925 0 0012.012 2z"/></svg>
+  </a>
+  <div id="zf-chat-bubble" title="AI Concierge Web Chat">💬</div>
+</div>
+
 <div id="zf-chat-window">
-  <div id="zf-chat-header">Zenfuture Technologies
-    <span id="zf-chat-close">&times;</span>
+  <div id="zf-chat-header">
+    <span>Zenfuture Technologies</span>
+    <div style="display: flex; gap: 8px; align-items: center;">
+      <a href="https://wa.me/15551234567?text=Hi" target="_blank" style="background:#25D366; color:#000; padding:2px 6px; border-radius:4px; font-size:11px; text-decoration:none; font-weight:bold;">WhatsApp</a>
+      <span id="zf-chat-close" style="cursor:pointer; font-size:18px;">&times;</span>
+    </div>
   </div>
   <div id="zf-chat-messages"></div>
   <div id="zf-chat-input-row">
@@ -17,15 +27,24 @@
 </div>
 
 <style>
-  #zf-chat-bubble {
-    position: fixed; bottom: 20px; right: 20px; width: 56px; height: 56px;
-    background: #2E4053; color: #fff; border-radius: 50%; display: flex;
-    align-items: center; justify-content: center; font-size: 24px; cursor: pointer;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.2); z-index: 9999;
+  #zf-widget-container {
+    position: fixed; bottom: 20px; right: 20px; display: flex; flex-direction: column; gap: 12px; z-index: 9999;
   }
+  #zf-wa-bubble {
+    width: 52px; height: 52px; background: #25D366; border-radius: 50%; display: flex;
+    align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    transition: transform 0.2s; text-decoration: none;
+  }
+  #zf-wa-bubble:hover { transform: scale(1.1); }
+  #zf-chat-bubble {
+    width: 56px; height: 56px; background: #2E4053; color: #fff; border-radius: 50%; display: flex;
+    align-items: center; justify-content: center; font-size: 24px; cursor: pointer;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3); transition: transform 0.2s;
+  }
+  #zf-chat-bubble:hover { transform: scale(1.1); }
   #zf-chat-window {
-    position: fixed; bottom: 90px; right: 20px; width: 320px; height: 420px;
-    background: #fff; border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.25);
+    position: fixed; bottom: 100px; right: 20px; width: 340px; height: 450px;
+    background: #fff; border-radius: 12px; box-shadow: 0 4px 25px rgba(0,0,0,0.3);
     display: none; flex-direction: column; overflow: hidden; z-index: 9999;
     font-family: Arial, sans-serif;
   }
@@ -33,7 +52,6 @@
     background: #2E4053; color: #fff; padding: 12px; font-weight: bold;
     display: flex; justify-content: space-between; align-items: center;
   }
-  #zf-chat-close { cursor: pointer; }
   #zf-chat-messages { flex: 1; padding: 10px; overflow-y: auto; font-size: 14px; }
   .zf-msg { margin-bottom: 8px; padding: 8px 10px; border-radius: 8px; max-width: 80%; }
   .zf-msg.user { background: #DCF8C6; margin-left: auto; text-align: right; }
@@ -41,11 +59,26 @@
   #zf-chat-input-row { display: flex; border-top: 1px solid #eee; }
   #zf-chat-input { flex: 1; border: none; padding: 10px; font-size: 14px; }
   #zf-chat-send { border: none; background: #2E4053; color: #fff; padding: 0 14px; cursor: pointer; }
+  
+  .zf-thinking {
+    font-style: italic;
+    color: #64748b;
+  }
+  .zf-thinking::after {
+    content: '.';
+    animation: dots 1.5s steps(4, end) infinite;
+  }
+  @keyframes dots {
+    0%, 20% { content: '.'; }
+    40% { content: '..'; }
+    60% { content: '...'; }
+    80%, 100% { content: ''; }
+  }
 </style>
 
 <script>
 (function () {
-  const API_BASE_URL = "http://localhost:8000"; // TODO: change to your deployed backend URL
+  const API_BASE_URL = "http://localhost:8000";
 
   const bubble = document.getElementById("zf-chat-bubble");
   const chatWindow = document.getElementById("zf-chat-window");
@@ -54,12 +87,12 @@
   const input = document.getElementById("zf-chat-input");
   const sendBtn = document.getElementById("zf-chat-send");
 
-  // Persist a per-visitor session id in the browser so the conversation
-  // (and lead-capture progress) survives across page loads.
-  let sessionId = localStorage.getItem("zf_session_id");
+  // Persistent user UUID stored in localStorage. Generated once per browser.
+  let sessionId = localStorage.getItem("zf_user_uuid");
   if (!sessionId) {
-    sessionId = "web-" + crypto.randomUUID();
-    localStorage.setItem("zf_session_id", sessionId);
+    // Use a standard UUID (no prefix) so it can be used directly as a persistent user id.
+    sessionId = crypto.randomUUID();
+    localStorage.setItem("zf_user_uuid", sessionId);
   }
 
   let opened = false;
@@ -69,31 +102,142 @@
     chatWindow.style.flexDirection = "column";
     if (!opened) {
       opened = true;
-      sendMessage(""); // trigger the initial greeting
+      // Load existing conversation for this persistent user and then trigger lead flow
+      loadConversation();
     }
   });
   closeBtn.addEventListener("click", () => (chatWindow.style.display = "none"));
 
+  function escapeHtml(text) {
+    return text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  function markdownToHtml(text) {
+    const escaped = escapeHtml(text);
+    let html = escaped
+      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+      .replace(/\*(.+?)\*/g, '<em>$1</em>')
+      .replace(/\[(.+?)\]\((https?:\/\/[^\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+
+    html = html.replace(/^-\s+(.+)$/gm, '• $1');
+    html = html.replace(/\n/g, '<br>');
+    return html;
+  }
+
   function appendMessage(text, sender) {
     const div = document.createElement("div");
     div.className = "zf-msg " + sender;
-    div.textContent = text;
+    if (sender === "bot") {
+      div.innerHTML = markdownToHtml(text);
+    } else {
+      div.textContent = text;
+    }
     messagesEl.appendChild(div);
     messagesEl.scrollTop = messagesEl.scrollHeight;
+    return div;
   }
 
   async function sendMessage(text) {
     if (text) appendMessage(text, "user");
+
+    // Show thinking indicator
+    const thinkingDiv = document.createElement("div");
+    thinkingDiv.className = "zf-msg bot zf-thinking";
+    thinkingDiv.textContent = "Thinking";
+    messagesEl.appendChild(thinkingDiv);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+
+    let botDiv = null;
+    let firstChunkReceived = false;
+
     try {
-      const res = await fetch(`${API_BASE_URL}/api/chat/website`, {
+      const res = await fetch(`${API_BASE_URL}/api/chat/website?stream=true`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ session_id: sessionId, message: text }),
       });
-      const data = await res.json();
-      appendMessage(data.reply, "bot");
+
+      if (!res.ok || !res.body) {
+        throw new Error("Stream unavailable");
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let replyText = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const chunk = decoder.decode(value, { stream: true });
+        if (!chunk) continue;
+
+        if (!firstChunkReceived) {
+          firstChunkReceived = true;
+          if (thinkingDiv.parentNode) {
+            thinkingDiv.parentNode.removeChild(thinkingDiv);
+          }
+          botDiv = appendMessage("", "bot");
+        }
+
+        replyText += chunk;
+        botDiv.innerHTML = markdownToHtml(replyText);
+        messagesEl.scrollTop = messagesEl.scrollHeight;
+      }
+
+      if (!firstChunkReceived) {
+        if (thinkingDiv.parentNode) {
+          thinkingDiv.parentNode.removeChild(thinkingDiv);
+        }
+        appendMessage("Sorry, I received an empty response.", "bot");
+      }
     } catch (err) {
-      appendMessage("Sorry, something went wrong. Please try again.", "bot");
+      if (thinkingDiv.parentNode) {
+        thinkingDiv.parentNode.removeChild(thinkingDiv);
+      }
+      if (botDiv) {
+        botDiv.innerHTML += "<br><br><em>(Connection error)</em>";
+      } else {
+        appendMessage("Sorry, something went wrong. Please try again.", "bot");
+      }
+    }
+  }
+
+  async function loadConversation() {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/chat/website/load?session_id=${sessionId}`);
+      const data = await res.json();
+      messagesEl.innerHTML = "";
+      if (data.messages && data.messages.length) {
+        for (const m of data.messages) {
+          const sender = m.role === 'bot' ? 'bot' : 'user';
+          // handle quick-action bubbles specially when metadata is present
+          if (m.message_type === 'quick_action' && m.message_metadata && m.message_metadata.bubble) {
+            const bubble = document.createElement('div');
+            bubble.className = 'zf-msg bot';
+            bubble.textContent = m.message_metadata.bubble;
+            bubble.style.cursor = 'pointer';
+            bubble.addEventListener('click', () => {
+              input.value = m.message_metadata.bubble;
+              sendBtn.click();
+            });
+            messagesEl.appendChild(bubble);
+            messagesEl.scrollTop = messagesEl.scrollHeight;
+          } else {
+            appendMessage(m.content, sender);
+          }
+        }
+      } else {
+        // trigger initial lead-capture welcome (empty message)
+        sendMessage("");
+      }
+    } catch (err) {
+      // ignore load errors and start lead capture
+      sendMessage("");
     }
   }
 

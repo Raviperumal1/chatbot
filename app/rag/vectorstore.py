@@ -5,16 +5,20 @@ embedding function. Nothing here calls an external API.
 import chromadb
 from chromadb.utils import embedding_functions
 
-from app.config import settings
+import os
 
-_client = chromadb.PersistentClient(path=settings.chroma_persist_dir)
+CHROMA_PERSIST_DIR = os.getenv("CHROMA_PERSIST_DIR", "./chroma_store")
+EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "all-MiniLM-L6-v2")
+CHROMA_COLLECTION = os.getenv("CHROMA_COLLECTION", "zenfuture_kb")
+
+_client = chromadb.PersistentClient(path=CHROMA_PERSIST_DIR)
 
 _embedder = embedding_functions.SentenceTransformerEmbeddingFunction(
-    model_name=settings.embedding_model
+    model_name=EMBEDDING_MODEL
 )
 
 _collection = _client.get_or_create_collection(
-    name=settings.chroma_collection,
+    name=CHROMA_COLLECTION,
     embedding_function=_embedder,
     metadata={"hnsw:space": "cosine"},
 )

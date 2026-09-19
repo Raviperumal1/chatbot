@@ -1,13 +1,3 @@
-"""
-Knowledge base ingestion pipeline.
-
-Sources supported:
-  - Website pages (fetched by URL and stripped of HTML)
-  - PDF documents (data/documents/*.pdf)
-  - FAQ files (data/faqs/*.md or *.txt, "Q: ... / A: ..." format)
-
-Run via: python -m scripts.ingest_knowledge_base
-"""
 import hashlib
 import os
 
@@ -17,7 +7,7 @@ from pypdf import PdfReader
 
 from app.rag.vectorstore import add_documents
 
-CHUNK_SIZE = 800
+CHUNK_SIZE = 400
 CHUNK_OVERLAP = 100
 
 
@@ -55,6 +45,7 @@ def ingest_website(url: str) -> int:
     for tag in soup(["script", "style", "nav", "footer"]):
         tag.decompose()
     text = soup.get_text(separator=" ")
+    print(f"ingesting {text} from website {url}")
     return ingest_text(text, source=url, extra_meta={"type": "website"})
 
 

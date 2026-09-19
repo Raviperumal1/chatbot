@@ -28,8 +28,11 @@ class LeadOut(BaseModel):
 
 
 class MessageOut(BaseModel):
+    message_uuid: Optional[UUID] = None
     role: str
     content: str
+    message_type: str
+    message_metadata: Optional[dict] = None
     created_at: datetime
 
     class Config:
@@ -38,3 +41,11 @@ class MessageOut(BaseModel):
 
 class LeadDetailOut(LeadOut):
     messages: List[MessageOut] = []
+
+
+class ChatLoadResponse(BaseModel):
+    lead: Optional[LeadOut] = None
+    messages: List[MessageOut] = []
+
+    class Config:
+        from_attributes = True

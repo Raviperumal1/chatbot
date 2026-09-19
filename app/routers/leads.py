@@ -1,7 +1,8 @@
 from fastapi import APIRouter, Depends, Header, HTTPException
 from sqlalchemy.orm import Session
 
-from app.config import settings
+import os
+
 from app.database import get_db
 from app.models import Lead
 from app.schemas import LeadOut, LeadDetailOut
@@ -10,7 +11,8 @@ router = APIRouter(prefix="/api/leads", tags=["leads"])
 
 
 def require_admin(x_api_key: str = Header(...)):
-    if x_api_key != settings.admin_api_key:
+    admin_key = os.getenv("ADMIN_API_KEY", "change_me")
+    if x_api_key != admin_key:
         raise HTTPException(status_code=401, detail="Invalid admin API key")
 
 

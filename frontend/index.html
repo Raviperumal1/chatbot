@@ -3,391 +3,757 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Zenfuture AI Assistant</title>
+    <title>Zenfuture AI Assistant & WhatsApp Integration Demo</title>
     <!-- Google Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         :root {
-            --zf-primary: #1e293b; /* Dark Navy */
-            --zf-accent: #3b82f6;  /* Tech Blue */
+            --zf-primary: #1e293b;
+            --zf-accent: #3b82f6;
+            --zf-wa-green: #25D366;
+            --zf-wa-dark: #075E54;
+            --zf-wa-light-green: #DCF8C6;
+            --zf-wa-bg: #E5DDD5;
             --zf-bg: #f8fafc;
-            --zf-text-main: #1e293b;
-            --zf-text-muted: #64748b;
-            --zf-glass: rgba(255, 255, 255, 0.9);
         }
 
         body {
             font-family: 'Inter', sans-serif;
             margin: 0;
             padding: 0;
-            background-color: #f0f2f5;
-            background-image: radial-gradient(#d1d5db 1px, transparent 1px);
-            background-size: 40px 40px;
-            height: 100vh;
+            background-color: #0f172a;
+            color: #f8fafc;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
         }
 
-        /* Test Card for Demo */
-        .demo-container {
-            padding: 50px;
+        .hero-container {
+            max-width: 900px;
+            padding: 60px 20px;
             text-align: center;
         }
 
-        /* --- Chat Bubble --- */
-        #zf-chat-trigger {
+        .hero-title {
+            font-size: 42px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #60a5fa, #34d399);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 16px;
+        }
+
+        .hero-desc {
+            font-size: 18px;
+            color: #94a3b8;
+            line-height: 1.6;
+            margin-bottom: 40px;
+        }
+
+        .cards-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+            width: 100%;
+            margin-top: 20px;
+        }
+
+        .demo-card {
+            background: rgba(30, 41, 59, 0.7);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+            padding: 24px;
+            text-align: left;
+            backdrop-filter: blur(12px);
+            transition: 0.3s ease;
+        }
+
+        .demo-card:hover {
+            transform: translateY(-4px);
+            border-color: rgba(96, 165, 250, 0.4);
+            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.3);
+        }
+
+        .demo-card h3 {
+            margin-top: 0;
+            font-size: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .demo-card p {
+            color: #cbd5e1;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        .btn-action {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 18px;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 14px;
+            text-decoration: none;
+            cursor: pointer;
+            border: none;
+            transition: 0.2s;
+            margin-top: 10px;
+        }
+
+        .btn-wa {
+            background: #25D366;
+            color: #000;
+        }
+
+        .btn-wa:hover {
+            background: #20ba5a;
+        }
+
+        .btn-web {
+            background: #3b82f6;
+            color: #fff;
+        }
+
+        .btn-web:hover {
+            background: #2563eb;
+        }
+
+        /* --- Floating Triggers Container --- */
+        .floating-triggers {
             position: fixed;
             bottom: 30px;
             right: 30px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            align-items: flex-end;
+            z-index: 10000;
+        }
+
+        .trigger-btn {
             width: 60px;
             height: 60px;
-            background: var(--zf-primary);
-            color: white;
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
             cursor: pointer;
-            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4);
             transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-            z-index: 10000;
+            position: relative;
         }
 
-        #zf-chat-trigger:hover {
-            transform: scale(1.1) rotate(5deg);
+        .trigger-btn:hover {
+            transform: scale(1.1);
         }
 
-        #zf-chat-trigger svg {
-            width: 28px;
-            height: 28px;
+        .trigger-btn.wa-trigger {
+            background: var(--zf-wa-green);
+            color: white;
+        }
+
+        .trigger-btn.web-trigger {
+            background: var(--zf-primary);
+            color: white;
+        }
+
+        .trigger-btn svg {
+            width: 30px;
+            height: 30px;
             fill: currentColor;
         }
 
-        /* --- Chat Window --- */
-        #zf-chat-window {
+        .trigger-label {
+            position: absolute;
+            right: 70px;
+            background: #1e293b;
+            color: white;
+            padding: 6px 12px;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 600;
+            white-space: nowrap;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            pointer-events: none;
+            opacity: 0;
+            transition: 0.2s ease;
+        }
+
+        .trigger-btn:hover .trigger-label {
+            opacity: 1;
+        }
+
+        /* --- Floating Windows --- */
+        .chat-window {
             position: fixed;
             bottom: 105px;
             right: 30px;
             width: 380px;
-            height: 600px;
-            max-height: calc(100vh - 150px);
-            background: var(--zf-glass);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.3);
-            border-radius: 24px;
-            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.15);
+            height: 580px;
+            max-height: calc(100vh - 140px);
+            border-radius: 20px;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4);
             display: none;
             flex-direction: column;
             overflow: hidden;
             z-index: 10000;
-            animation: slideIn 0.4s ease-out;
+            animation: slideUp 0.3s ease-out;
         }
 
-        @keyframes slideIn {
-            from { opacity: 0; transform: translateY(30px) scale(0.95); }
-            to { opacity: 1; transform: translateY(0) scale(1); }
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
         }
 
-        /* Header */
-        #zf-chat-header {
-            background: var(--zf-primary);
+        /* --- WhatsApp Chat Window Styles --- */
+        #wa-window {
+            background: #ece5dd;
+            border: 1px solid #128c7e;
+        }
+
+        #wa-header {
+            background: var(--zf-wa-dark);
             color: white;
-            padding: 20px;
+            padding: 14px 16px;
             display: flex;
             align-items: center;
             gap: 12px;
         }
 
-        .zf-avatar {
-            width: 40px;
-            height: 40px;
-            background: #fff;
-            border-radius: 12px;
+        .wa-avatar {
+            width: 38px;
+            height: 38px;
+            background: white;
+            border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-weight: bold;
-            color: var(--zf-primary);
         }
 
-        .zf-header-info {
+        .wa-header-info {
             flex: 1;
         }
 
-        .zf-header-info h4 {
+        .wa-header-info h4 {
             margin: 0;
-            font-size: 16px;
+            font-size: 15px;
             font-weight: 600;
         }
 
-        .zf-status {
-            font-size: 12px;
+        .wa-header-info span {
+            font-size: 11px;
             opacity: 0.8;
+        }
+
+        .wa-actions {
             display: flex;
             align-items: center;
-            gap: 4px;
+            gap: 10px;
         }
 
-        .zf-status::before {
-            content: "";
-            width: 8px;
-            height: 8px;
-            background: #22c55e;
-            border-radius: 50%;
-            display: inline-block;
+        .wa-link-btn {
+            background: #25D366;
+            color: #000;
+            border: none;
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: bold;
+            text-decoration: none;
         }
 
-        #zf-chat-close {
-            cursor: pointer;
-            opacity: 0.7;
-            transition: 0.2s;
-        }
-
-        #zf-chat-close:hover { opacity: 1; }
-
-        /* Messages Area */
-        #zf-chat-messages {
+        #wa-messages {
             flex: 1;
-            padding: 20px;
+            padding: 14px;
             overflow-y: auto;
             display: flex;
             flex-direction: column;
-            gap: 12px;
-            background: rgba(248, 250, 252, 0.5);
+            gap: 10px;
+            background-image: radial-gradient(#d1d5db 1px, transparent 1px);
+            background-size: 20px 20px;
         }
 
-        .zf-msg {
-            max-width: 80%;
-            padding: 12px 16px;
-            border-radius: 16px;
-            font-size: 14px;
-            line-height: 1.5;
-            position: relative;
-        }
-
-        .zf-msg.bot {
-            background: white;
-            color: var(--zf-text-main);
-            align-self: flex-start;
-            border-bottom-left-radius: 4px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
-        }
-
-        .zf-msg.user {
-            background: var(--zf-primary);
-            color: white;
-            align-self: flex-end;
-            border-bottom-right-radius: 4px;
-            box-shadow: 0 4px 12px rgba(30, 41, 59, 0.2);
-        }
-
-        /* Typing Animation */
-        .typing {
-            display: none;
-            padding: 12px 16px;
-            background: white;
-            border-radius: 16px;
-            width: fit-content;
-            gap: 4px;
-        }
-
-        .dot {
-            width: 6px;
-            height: 6px;
-            background: #cbd5e1;
-            border-radius: 50%;
-            animation: bounce 1.4s infinite;
-        }
-        .dot:nth-child(2) { animation-delay: 0.2s; }
-        .dot:nth-child(3) { animation-delay: 0.4s; }
-
-        @keyframes bounce {
-            0%, 80%, 100% { transform: translateY(0); }
-            40% { transform: translateY(-6px); }
-        }
-
-        /* Input Area */
-        #zf-chat-input-container {
-            padding: 20px;
-            background: white;
-            border-top: 1px solid #f1f5f9;
-        }
-
-        .input-wrapper {
-            display: flex;
-            background: #f1f5f9;
-            padding: 8px 12px;
+        .wa-msg {
+            max-width: 82%;
+            padding: 10px 14px;
             border-radius: 12px;
+            font-size: 13.5px;
+            line-height: 1.4;
+            color: #111b21;
+            position: relative;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.15);
+        }
+
+        .wa-msg.bot {
+            background: white;
+            align-self: flex-start;
+            border-top-left-radius: 2px;
+        }
+
+        .wa-msg.user {
+            background: #d9fdd3;
+            align-self: flex-end;
+            border-top-right-radius: 2px;
+        }
+
+        .wa-msg-header {
+            font-weight: bold;
+            color: #128c7e;
+            font-size: 12px;
+            margin-bottom: 4px;
+        }
+
+        .wa-btn-options {
+            margin-top: 8px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .wa-opt-btn {
+            background: #f0f2f5;
+            color: #00a884;
+            border: 1px solid #00a884;
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-size: 12.5px;
+            font-weight: 600;
+            cursor: pointer;
+            text-align: center;
+            transition: 0.2s;
+        }
+
+        .wa-opt-btn:hover {
+            background: #00a884;
+            color: white;
+        }
+
+        #wa-input-row {
+            padding: 12px;
+            background: #f0f2f5;
+            display: flex;
+            gap: 8px;
             align-items: center;
-            transition: 0.3s;
         }
 
-        .input-wrapper:focus-within {
-            background: #fff;
-            box-shadow: 0 0 0 2px var(--zf-accent);
-        }
-
-        #zf-chat-input {
+        #wa-input {
             flex: 1;
             border: none;
-            background: transparent;
-            padding: 8px;
-            font-family: inherit;
+            background: white;
+            padding: 10px 14px;
+            border-radius: 20px;
             outline: none;
             font-size: 14px;
         }
 
-        #zf-chat-send {
-            background: var(--zf-primary);
+        #wa-send {
+            background: #128c7e;
             color: white;
             border: none;
-            width: 32px;
-            height: 32px;
-            border-radius: 8px;
+            width: 38px;
+            height: 38px;
+            border-radius: 50%;
             cursor: pointer;
             display: flex;
             align-items: center;
             justify-content: center;
-            transition: 0.2s;
         }
 
-        #zf-chat-send:hover {
-            background: var(--zf-accent);
+        /* --- Website Chat Window Styles --- */
+        #web-window {
+            background: white;
+            color: #1e293b;
         }
 
-        /* Scrollbar */
-        #zf-chat-messages::-webkit-scrollbar { width: 5px; }
-        #zf-chat-messages::-webkit-scrollbar-track { background: transparent; }
-        #zf-chat-messages::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        #web-header {
+            background: #1e293b;
+            color: white;
+            padding: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
 
-        @media (max-width: 480px) {
-            #zf-chat-window {
-                width: calc(100% - 40px);
-                bottom: 80px;
-                right: 20px;
-                height: 70vh;
-            }
+        #web-messages {
+            flex: 1;
+            padding: 16px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            background: #f8fafc;
+        }
+
+        .web-msg {
+            max-width: 80%;
+            padding: 10px 14px;
+            border-radius: 12px;
+            font-size: 14px;
+            line-height: 1.4;
+        }
+
+        .web-msg.bot {
+            background: white;
+            color: #1e293b;
+            align-self: flex-start;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        .web-msg.user {
+            background: #3b82f6;
+            color: white;
+            align-self: flex-end;
+        }
+
+        #web-input-row {
+            padding: 14px;
+            border-top: 1px solid #e2e8f0;
+            display: flex;
+            gap: 8px;
+        }
+
+        #web-input {
+            flex: 1;
+            border: 1px solid #cbd5e1;
+            padding: 8px 12px;
+            border-radius: 8px;
+            outline: none;
+        }
+
+        #web-send {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 8px 14px;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+
+        .zf-thinking {
+            font-style: italic;
+            color: #64748b;
+        }
+        .zf-thinking::after {
+            content: '.';
+            animation: dots 1.5s steps(4, end) infinite;
+        }
+        @keyframes dots {
+            0%, 20% { content: '.'; }
+            40% { content: '..'; }
+            60% { content: '...'; }
+            80%, 100% { content: ''; }
         }
     </style>
 </head>
 <body>
 
-    <div class="demo-container">
-        <h1>Zenfuture Technologies</h1>
+    <div class="hero-container">
+        <h1 class="hero-title">Zenfuture AI Technologies</h1>
+
     </div>
 
-    <!-- Chat Trigger Bubble -->
-    <div id="zf-chat-trigger">
-        <svg viewBox="0 0 24 24"><path d="M12 2C6.477 2 2 6.477 2 12c0 1.821.487 3.53 1.338 5L2.015 21.985l4.985-1.323c1.47.851 3.179 1.338 5 1.338 5.523 0 10-4.477 10-10S17.523 2 12 2zm0 18c-1.477 0-2.873-.406-4.077-1.112l-2.71.721.722-2.711A7.95 7.95 0 014 12c0-4.411 3.589-8 8-8s8 3.589 8 8-3.589 8-8 8z"/></svg>
+    <!-- Floating Action Buttons -->
+    <div class="floating-triggers">
+        <!-- WhatsApp Trigger -->
+        <div id="wa-trigger" class="trigger-btn wa-trigger">
+            <span class="trigger-label">WhatsApp AI Chat</span>
+            <svg viewBox="0 0 24 24"><path d="M12.012 2c-5.506 0-9.989 4.478-9.99 9.984 0 1.76.459 3.474 1.33 4.982l-1.413 5.163 5.286-1.386a9.943 9.943 0 004.782 1.226h.005c5.506 0 9.989-4.478 9.99-9.984 0-2.667-1.037-5.176-2.922-7.062A9.925 9.925 0 0012.012 2zm5.836 14.168c-.244.686-1.42 1.309-1.96 1.388-.503.074-1.144.108-1.841-.115-.436-.14-1.002-.325-1.745-.648-3.076-1.334-5.074-4.444-5.228-4.649-.153-.205-1.252-1.666-1.252-3.177 0-1.512.793-2.256 1.074-2.56.281-.304.613-.38.818-.38.204 0 .408.002.587.01.19.008.444-.072.695.53.256.614.871 2.124.947 2.278.077.153.128.333.026.537-.103.205-.153.333-.306.512-.153.18-.323.403-.46.541-.153.154-.314.322-.135.63.178.307.794 1.31 1.706 2.122 1.17 1.042 2.158 1.365 2.465 1.519.307.153.486.128.666-.077.179-.205.767-.896.971-1.203.205-.307.409-.256.69-.153.282.103 1.789.844 2.096.997.307.154.512.23.588.358.076.128.076.742-.168 1.428z"/></svg>
+        </div>
+
+        <!-- Website Chat Trigger -->
+        <div id="web-trigger" class="trigger-btn web-trigger">
+            <span class="trigger-label">Website AI Chat</span>
+            <svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>
+        </div>
     </div>
 
-    <!-- Chat Window -->
-    <div id="zf-chat-window">
-        <div id="zf-chat-header">
-            <div class="zf-avatar">Z</div>
-            <div class="zf-header-info">
-                <h4>Zenfuture AI</h4>
-                <div class="zf-status">Online</div>
+    <!-- WhatsApp Chat Simulator Window -->
+    <div id="wa-window" class="chat-window">
+        <div id="wa-header">
+            <div class="wa-avatar">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="#128c7e"><path d="M12.012 2c-5.506 0-9.989 4.478-9.99 9.984 0 1.76.459 3.474 1.33 4.982l-1.413 5.163 5.286-1.386a9.943 9.943 0 004.782 1.226h.005c5.506 0 9.989-4.478 9.99-9.984 0-2.667-1.037-5.176-2.922-7.062A9.925 9.925 0 0012.012 2z"/></svg>
             </div>
-            <div id="zf-chat-close">
-                <svg width="20" height="20" fill="white" viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+            <div class="wa-header-info">
+                <h4>Zenfuture WhatsApp</h4>
+                <span>Official Business AI</span>
+            </div>
+            <div class="wa-actions">
+                <a href="https://wa.me/15551234567?text=Hi" target="_blank" class="wa-link-btn" title="Click to open real WhatsApp app">Open Real WA</a>
+                <span id="wa-close" style="cursor:pointer; font-size:18px;">✕</span>
             </div>
         </div>
 
-        <div id="zf-chat-messages">
-            <!-- Messages appear here -->
-        </div>
+        <div id="wa-messages"></div>
 
-        <div id="typing-indicator" class="zf-msg bot typing">
-            <div class="dot"></div><div class="dot"></div><div class="dot"></div>
+        <div id="wa-input-row">
+            <input id="wa-input" type="text" placeholder="Type a WhatsApp message..." autocomplete="off" />
+            <button id="wa-send">
+                <svg width="18" height="18" fill="white" viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+            </button>
         </div>
+    </div>
 
-        <div id="zf-chat-input-container">
-            <div class="input-wrapper">
-                <input id="zf-chat-input" type="text" placeholder="Ask about our services..." autocomplete="off" />
-                <button id="zf-chat-send">
-                    <svg width="16" height="16" fill="white" viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
-                </button>
-            </div>
+    <!-- Website Chat Window -->
+    <div id="web-window" class="chat-window">
+        <div id="web-header">
+            <strong>Zenfuture AI Technologies</strong>
+            <span id="web-close" style="cursor:pointer;">✕</span>
+        </div>
+        <div id="web-messages"></div>
+        <div id="web-input-row">
+            <input id="web-input" type="text" placeholder="Ask a question..." autocomplete="off" />
+            <button id="web-send">Send</button>
         </div>
     </div>
 
     <script>
         (function () {
-            const API_BASE_URL = "http://localhost:8000";
-            const trigger = document.getElementById("zf-chat-trigger");
-            const chatWindow = document.getElementById("zf-chat-window");
-            const closeBtn = document.getElementById("zf-chat-close");
-            const messagesEl = document.getElementById("zf-chat-messages");
-            const typingIndicator = document.getElementById("typing-indicator");
-            const input = document.getElementById("zf-chat-input");
-            const sendBtn = document.getElementById("zf-chat-send");
+            const API_BASE = "http://localhost:8000";
 
-            let sessionId = localStorage.getItem("zf_session_id") || "web-" + crypto.randomUUID();
-            localStorage.setItem("zf_session_id", sessionId);
+            // Elements
+            const waTrigger = document.getElementById("wa-trigger");
+            const webTrigger = document.getElementById("web-trigger");
+            const waWindow = document.getElementById("wa-window");
+            const webWindow = document.getElementById("web-window");
+            const waClose = document.getElementById("wa-close");
+            const webClose = document.getElementById("web-close");
+            const cardBtnWa = document.getElementById("card-btn-wa");
+            const cardBtnWeb = document.getElementById("card-btn-web");
 
-            let hasOpened = false;
+            const waMessages = document.getElementById("wa-messages");
+            const waInput = document.getElementById("wa-input");
+            const waSend = document.getElementById("wa-send");
 
-            // Toggle Window
-            trigger.addEventListener("click", () => {
-                const isHidden = chatWindow.style.display === "none" || chatWindow.style.display === "";
-                chatWindow.style.display = isHidden ? "flex" : "none";
-                
-                if (isHidden && !hasOpened) {
-                    hasOpened = true;
-                    showBotTyping(true);
-                    setTimeout(() => sendMessage(""), 1000); // Initial Greeting
+            const webMessages = document.getElementById("web-messages");
+            const webInput = document.getElementById("web-input");
+            const webSend = document.getElementById("web-send");
+
+            let waPhone = "1555" + Math.floor(1000000 + Math.random() * 9000000);
+            let webSessionId = localStorage.getItem("zf_web_session") || "web-" + crypto.randomUUID();
+            localStorage.setItem("zf_web_session", webSessionId);
+
+            let waOpened = false;
+            let webOpened = false;
+
+            // Toggle Windows
+            function toggleWindow(win, other) {
+                if (other) other.style.display = "none";
+                const isHidden = win.style.display === "none" || win.style.display === "";
+                win.style.display = isHidden ? "flex" : "none";
+            }
+
+            waTrigger.addEventListener("click", () => {
+                toggleWindow(waWindow, webWindow);
+                if (!waOpened) {
+                    waOpened = true;
+                    sendWaMessage("", "btn_main_menu");
                 }
             });
 
-            closeBtn.addEventListener("click", () => {
-                chatWindow.style.display = "none";
+            webTrigger.addEventListener("click", () => {
+                toggleWindow(webWindow, waWindow);
+                if (!webOpened) {
+                    webOpened = true;
+                    sendWebMessage("");
+                }
             });
 
-            function showBotTyping(show) {
-                typingIndicator.style.display = show ? "flex" : "none";
-                messagesEl.scrollTop = messagesEl.scrollHeight;
+            if (waClose) waClose.addEventListener("click", () => waWindow.style.display = "none");
+            if (webClose) webClose.addEventListener("click", () => webWindow.style.display = "none");
+            if (cardBtnWa) cardBtnWa.addEventListener("click", () => waTrigger.click());
+            if (cardBtnWeb) cardBtnWeb.addEventListener("click", () => webTrigger.click());
+
+            // --- WHATSAPP SIMULATOR LOGIC ---
+            function renderWaResponse(data) {
+                const div = document.createElement("div");
+                div.className = "wa-msg bot";
+
+                let html = "";
+                if (data.header) html += `<div class="wa-msg-header">${data.header}</div>`;
+                html += `<div>${(data.reply || "").replace(/\n/g, "<br>")}</div>`;
+
+                if (data.buttons && data.buttons.length > 0) {
+                    html += `<div class="wa-btn-options">`;
+                    data.buttons.forEach(btn => {
+                        html += `<button class="wa-opt-btn" data-id="${btn.id}">${btn.title}</button>`;
+                    });
+                    html += `</div>`;
+                }
+
+                div.innerHTML = html;
+                waMessages.appendChild(div);
+                waMessages.scrollTop = waMessages.scrollHeight;
+
+                // Bind option button clicks
+                div.querySelectorAll(".wa-opt-btn").forEach(btnEl => {
+                    btnEl.addEventListener("click", () => {
+                        const btnId = btnEl.getAttribute("data-id");
+                        const btnText = btnEl.textContent;
+                        appendWaUserMsg(btnText);
+                        sendWaMessage("", btnId);
+                    });
+                });
             }
 
-            function appendMessage(text, sender) {
+            function appendWaUserMsg(text) {
                 if (!text) return;
                 const div = document.createElement("div");
-                div.className = `zf-msg ${sender}`;
+                div.className = "wa-msg user";
                 div.textContent = text;
-                messagesEl.appendChild(div);
-                messagesEl.scrollTop = messagesEl.scrollHeight;
+                waMessages.appendChild(div);
+                waMessages.scrollTop = waMessages.scrollHeight;
             }
 
-            async function sendMessage(text) {
-                if (text) {
-                    appendMessage(text, "user");
-                    showBotTyping(true);
-                }
+            async function sendWaMessage(text, buttonId = null) {
+                if (text) appendWaUserMsg(text);
 
                 try {
-                    const res = await fetch(`${API_BASE_URL}/api/chat/website`, {
+                    const res = await fetch(`${API_BASE}/api/chat/whatsapp/demo`, {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ session_id: sessionId, message: text }),
+                        body: JSON.stringify({
+                            phone: waPhone,
+                            name: "Ravi",
+                            message: text,
+                            button_id: buttonId
+                        }),
                     });
                     const data = await res.json();
-                    
-                    showBotTyping(false);
-                    appendMessage(data.reply, "bot");
+                    renderWaResponse(data);
                 } catch (err) {
-                    showBotTyping(false);
-                    appendMessage("Our systems are a bit busy. Please try again later.", "bot");
+                    renderWaResponse({ reply: "I'm having trouble reaching the WhatsApp service right now." });
                 }
             }
 
-            sendBtn.addEventListener("click", () => {
-                const text = input.value.trim();
+            waSend.addEventListener("click", () => {
+                const text = waInput.value.trim();
                 if (!text) return;
-                input.value = "";
-                sendMessage(text);
+                waInput.value = "";
+                sendWaMessage(text);
             });
 
-            input.addEventListener("keydown", (e) => {
-                if (e.key === "Enter") sendBtn.click();
+            waInput.addEventListener("keydown", (e) => {
+                if (e.key === "Enter") waSend.click();
             });
+
+            // --- WEBSITE CHAT LOGIC ---
+            function escapeHtml(text) {
+                return text
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;')
+                    .replace(/'/g, '&#39;');
+            }
+
+            function markdownToHtml(text) {
+                const escaped = escapeHtml(text);
+                let html = escaped
+                    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+                    .replace(/\*(.+?)\*/g, '<em>$1</em>')
+                    .replace(/\[(.+?)\]\((https?:\/\/[^\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+
+                html = html.replace(/^-\s+(.+)$/gm, '• $1');
+                html = html.replace(/\n/g, '<br>');
+                return html;
+            }
+
+            function appendWebMsg(text, sender) {
+                const div = document.createElement("div");
+                div.className = `web-msg ${sender}`;
+                if (sender === "bot") {
+                    div.innerHTML = markdownToHtml(text);
+                } else {
+                    div.textContent = text;
+                }
+                webMessages.appendChild(div);
+                webMessages.scrollTop = webMessages.scrollHeight;
+                return div;
+            }
+
+            async function sendWebMessage(text) {
+                if (text) appendWebMsg(text, "user");
+
+                // Show thinking indicator
+                const thinkingDiv = document.createElement("div");
+                thinkingDiv.className = "web-msg bot zf-thinking";
+                thinkingDiv.textContent = "Thinking";
+                webMessages.appendChild(thinkingDiv);
+                webMessages.scrollTop = webMessages.scrollHeight;
+
+                let botDiv = null;
+                let firstChunkReceived = false;
+
+                try {
+                    const res = await fetch(`${API_BASE}/api/chat/website?stream=true`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ session_id: webSessionId, message: text }),
+                    });
+
+                    if (!res.ok || !res.body) {
+                        throw new Error("Stream unavailable");
+                    }
+
+                    const reader = res.body.getReader();
+                    const decoder = new TextDecoder();
+                    let replyText = "";
+
+                    while (true) {
+                        const { done, value } = await reader.read();
+                        if (done) break;
+                        const chunk = decoder.decode(value, { stream: true });
+                        if (!chunk) continue;
+
+                        if (!firstChunkReceived) {
+                            firstChunkReceived = true;
+                            if (thinkingDiv.parentNode) {
+                                thinkingDiv.parentNode.removeChild(thinkingDiv);
+                            }
+                            botDiv = appendWebMsg("", "bot");
+                        }
+
+                        replyText += chunk;
+                        botDiv.innerHTML = markdownToHtml(replyText);
+                        webMessages.scrollTop = webMessages.scrollHeight;
+                    }
+
+                    if (!firstChunkReceived) {
+                        if (thinkingDiv.parentNode) {
+                            thinkingDiv.parentNode.removeChild(thinkingDiv);
+                        }
+                        appendWebMsg("Sorry, I received an empty response.", "bot");
+                    }
+                } catch (err) {
+                    if (thinkingDiv.parentNode) {
+                        thinkingDiv.parentNode.removeChild(thinkingDiv);
+                    }
+                    if (botDiv) {
+                        botDiv.innerHTML += "<br><br><em>(Connection error)</em>";
+                    } else {
+                        appendWebMsg("Something went wrong. Please try again.", "bot");
+                    }
+                }
+            }
+
+            if (webSend) {
+                webSend.addEventListener("click", () => {
+                    const text = webInput.value.trim();
+                    if (!text) return;
+                    webInput.value = "";
+                    sendWebMessage(text);
+                });
+            }
+
+            if (webInput) {
+                webInput.addEventListener("keydown", (e) => {
+                    if (e.key === "Enter" && webSend) webSend.click();
+                });
+            }
         })();
     </script>
 </body>
