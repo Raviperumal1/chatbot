@@ -1,7 +1,7 @@
 import re
 from enum import Enum
-from sqlalchemy.orm.attributes import flag_modified
 from app.models import Conversation
+from app.services.conversation_metadata import get_or_migrate_metadata, update_lead_info, update_stage
 
 class Stage(str, Enum):
     ASK_NAME = "ask_name"
@@ -12,15 +12,16 @@ class Stage(str, Enum):
 EMAIL_RE = re.compile(r"[^@\s]+@[^@\s]+\.[^@\s]+")
 PHONE_RE = re.compile(r"[\d+][\d\s\-()]{6,}\d")
 
-WELCOME_MESSAGE = "Greetings from Zenfuture. Let's get started. May I have your name?"
+WELCOME_MESSAGE = "Welcome to Zenfuture! May I know your name?"
 
-ASK_EMAIL_MESSAGE = "Thanks, {name}. What is your work email?"
+ASK_EMAIL_MESSAGE = "Thank you, {name}. Could you please share your work email address?"
 
-ASK_PHONE_MESSAGE = "And a contact number for a quick follow-up?"
+ASK_PHONE_MESSAGE = "Thank you! Could you also share your contact number?"
 
 READY_MESSAGE = (
-    "Configuration complete. How can I help you scale with Zenfuture today, {name}? "
-    "I can provide details on our tech stack, custom solutions, or schedule a demo."
+    "Thank you, {name}. You're all set! How can I help you today? "
+    "I can help you explore our technology solutions, build a custom solution, "
+    "or schedule a demo with our team."
 )
 
 INVALID_EMAIL_MESSAGE = "That email format doesn't look right. Please provide a valid address."
@@ -29,20 +30,19 @@ INVALID_PHONE_MESSAGE = "Please enter a valid phone number so we can ensure conn
 
 
 def get_session(conversation: Conversation) -> dict:
-    meta = conversation.metadata_ or {}
-    if "stage" not in meta:
-        meta["stage"] = Stage.ASK_NAME.value
-        meta["name"] = None
-        meta["email"] = None
-        meta["phone"] = None
-        conversation.metadata_ = meta
-    return conversation.metadata_
-
-
-def _save_session(conversation: Conversation, session: dict):
-    conversation.metadata_ = session
-    flag_modified(conversation, "metadata_")
-
+    """
+    Backward-compatible method to get lead info and stage as a flat dict.
+    Used by email sender and other legacy callers.
+    """
+    meta = get_or_migrate_metadata(conversation)
+    lead = meta.get("lead", {})
+    
+    return {
+        "name": lead.get("name"),
+        "email": lead.get("email"),
+        "phone": lead.get("phone"),
+        "stage": lead.get("stage", Stage.ASK_NAME.value)
+    }
 
 def process_lead_capture(conversation: Conversation, message: str, company_name: str) -> tuple[str, bool]:
     """
@@ -57,29 +57,31 @@ def process_lead_capture(conversation: Conversation, message: str, company_name:
     message = message.strip()
 
     if stage == Stage.ASK_NAME.value:
-        # First message ever in this session: nothing to validate, just greet.
         if session["name"] is None and message == "":
             return WELCOME_MESSAGE.format(company_name=company_name), True
-        session["name"] = message or "there"
-        session["stage"] = Stage.ASK_EMAIL.value
-        _save_session(conversation, session)
-        return ASK_EMAIL_MESSAGE.format(name=session["name"]), True
+        
+        name = message or "there"
+        update_lead_info(conversation, name=name)
+        update_stage(conversation, Stage.ASK_EMAIL.value)
+        return ASK_EMAIL_MESSAGE.format(name=name), True
 
     if stage == Stage.ASK_EMAIL.value:
         if not EMAIL_RE.search(message):
             return INVALID_EMAIL_MESSAGE, True
-        session["email"] = EMAIL_RE.search(message).group(0)
-        session["stage"] = Stage.ASK_PHONE.value
-        _save_session(conversation, session)
+        
+        email = EMAIL_RE.search(message).group(0)
+        update_lead_info(conversation, email=email)
+        update_stage(conversation, Stage.ASK_PHONE.value)
         return ASK_PHONE_MESSAGE, True
 
     if stage == Stage.ASK_PHONE.value:
         if not PHONE_RE.search(message):
             return INVALID_PHONE_MESSAGE, True
-        session["phone"] = PHONE_RE.search(message).group(0)
-        session["stage"] = Stage.CHATTING.value
-        _save_session(conversation, session)
-        return READY_MESSAGE.format(name=session["name"]), True
+            
+        phone = PHONE_RE.search(message).group(0)
+        update_lead_info(conversation, phone=phone)
+        update_stage(conversation, Stage.CHATTING.value)
+        return READY_MESSAGE.format(name=session.get("name", "there")), True
 
     # Stage.CHATTING - lead already captured, let the caller run the RAG/LLM step
     if message == "":

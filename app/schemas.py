@@ -44,8 +44,5 @@ class LeadDetailOut(LeadOut):
 
 
 class ChatLoadResponse(BaseModel):
-    lead: Optional[LeadOut] = None
-    messages: List[MessageOut] = []
-
-    class Config:
-        from_attributes = True
+    lead: Optional[dict] = None
+    conversation: Optional[dict] = None

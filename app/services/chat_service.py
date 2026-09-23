@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from app.models import Channel, Conversation, Message, SenderRole, Lead
 from app.chat.lead_capture import process_lead_capture, get_session, Stage
 from app.chat.engine import _mark_notified_if_new, send_enquiry_email_async
+from app.services.conversation_metadata import increment_message_counts, set_channel_metadata
 from app.rag.retriever import get_context
 from app.llm.ollama_client import generate_reply, generate_reply_stream
 import os
@@ -32,6 +33,10 @@ class ChatService:
             db.add(convo)
             db.commit()
             db.refresh(convo)
+            
+            # Setup initial channel metadata if whatsapp
+            if channel == Channel.whatsapp:
+                set_channel_metadata(convo, "whatsapp", {})
 
         return convo
 
@@ -83,6 +88,8 @@ class ChatService:
             content=user_message,
         )
         db.add(user_msg)
+        db.flush()
+        increment_message_counts(convo, SenderRole.user)
         convo.last_message_at = datetime.now(IST)
         convo.updated_at = datetime.now(IST)
         db.commit()
@@ -124,12 +131,35 @@ class ChatService:
                 if _mark_notified_if_new(session_key):
                     send_enquiry_email_async(session, user_message)
 
-                context = get_context(user_message)
-                reply_text = generate_reply(user_message, context, history=history)
-        else:
-            # WhatsApp or other channel skips lead capture
+            import time
+            start_time = time.time()
             context = get_context(user_message)
             reply_text = generate_reply(user_message, context, history=history)
+            duration_ms = int((time.time() - start_time) * 1000)
+        else:
+            # WhatsApp or other channel skips lead capture
+            import time
+            start_time = time.time()
+            context = get_context(user_message)
+            reply_text = generate_reply(user_message, context, history=history)
+            duration_ms = int((time.time() - start_time) * 1000)
+
+        msg_metadata = {
+            "intent": "enquiry",
+            "response_type": "rag" if context else "standard",
+            "model": {
+                "provider": "ollama",
+                "name": "llama3.2:3b"
+            },
+            "rag": {
+                "enabled": True,
+                "documents_retrieved": len(context.split("[Source:")) - 1 if context else 0
+            },
+            "generation": {
+                "streamed": False,
+                "duration_ms": duration_ms
+            }
+        }
 
         # Save Assistant Message
         bot_msg_id = uuid.uuid4()
@@ -139,8 +169,11 @@ class ChatService:
             role=SenderRole.bot,
             channel=channel,
             content=reply_text,
+            message_metadata=msg_metadata
         )
         db.add(bot_msg)
+        db.flush()
+        increment_message_counts(convo, SenderRole.bot)
         convo.last_message_at = datetime.now(IST)
         convo.updated_at = datetime.now(IST)
         db.commit()
@@ -173,6 +206,8 @@ class ChatService:
                 content=user_message,
             )
             db.add(user_msg)
+            db.flush()
+            increment_message_counts(convo, SenderRole.user)
             convo.last_message_at = datetime.now(IST)
             convo.updated_at = datetime.now(IST)
             db.commit()
@@ -189,6 +224,8 @@ class ChatService:
                     content=reply,
                 )
                 db.add(bot_msg)
+                db.flush()
+                increment_message_counts(convo, SenderRole.bot)
                 convo.last_message_at = datetime.now(IST)
                 convo.updated_at = datetime.now(IST)
                 db.commit()
@@ -217,22 +254,46 @@ class ChatService:
             if _mark_notified_if_new(session_key):
                 send_enquiry_email_async(session, user_message)
 
+        import time
+        start_time = time.time()
         context = get_context(user_message)
         full_reply_parts = []
         for chunk in generate_reply_stream(user_message, context, history=history):
             full_reply_parts.append(chunk)
             yield chunk
 
+        duration_ms = int((time.time() - start_time) * 1000)
         full_reply = "".join(full_reply_parts).strip()
         bot_msg_id = uuid.uuid4()
+        
+        msg_metadata = {
+            "intent": "enquiry",
+            "response_type": "rag" if context else "standard",
+            "model": {
+                "provider": "ollama",
+                "name": "llama3.2:3b"
+            },
+            "rag": {
+                "enabled": True,
+                "documents_retrieved": len(context.split("[Source:")) - 1 if context else 0
+            },
+            "generation": {
+                "streamed": True,
+                "duration_ms": duration_ms
+            }
+        }
+        
         bot_msg = Message(
             message_uuid=bot_msg_id,
             conversation_id=convo.id,
             role=SenderRole.bot,
             channel=channel,
             content=full_reply,
+            message_metadata=msg_metadata
         )
         db.add(bot_msg)
+        db.flush()
+        increment_message_counts(convo, SenderRole.bot)
         convo.last_message_at = datetime.now(IST)
         convo.updated_at = datetime.now(IST)
         db.commit()

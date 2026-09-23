@@ -11,7 +11,12 @@ CHROMA_PERSIST_DIR = os.getenv("CHROMA_PERSIST_DIR", "./chroma_store")
 EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "all-MiniLM-L6-v2")
 CHROMA_COLLECTION = os.getenv("CHROMA_COLLECTION", "zenfuture_kb")
 
-_client = chromadb.PersistentClient(path=CHROMA_PERSIST_DIR)
+from chromadb.config import Settings
+
+_client = chromadb.PersistentClient(
+    path=CHROMA_PERSIST_DIR,
+    settings=Settings(anonymized_telemetry=False)
+)
 
 _embedder = embedding_functions.SentenceTransformerEmbeddingFunction(
     model_name=EMBEDDING_MODEL

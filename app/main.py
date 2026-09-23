@@ -12,6 +12,10 @@ from app.routers import leads, website_chat, whatsapp_chat
 from app.routers.v1 import chat as v1_chat
 from app.routers.v1 import conversations as v1_conversations
 
+from app.database import engine, Base
+from app import models
+Base.metadata.create_all(bind=engine)
+
 app = FastAPI(
     title="Zenfuture Technologies - AI Chatbot Backend",
     description=(
