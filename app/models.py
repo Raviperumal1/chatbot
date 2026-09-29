@@ -2,7 +2,7 @@ import enum
 import uuid
 from datetime import datetime, timezone, timedelta
 
-from sqlalchemy import Column, String, Text, DateTime, ForeignKey, Enum, JSON, Uuid
+from sqlalchemy import Column, String, Text, DateTime, ForeignKey, Enum, JSON, Uuid, Integer, UniqueConstraint
 from sqlalchemy.orm import relationship
 
 IST = timezone(timedelta(hours=5, minutes=30))
@@ -36,6 +36,10 @@ class Lead(Base):
 class Conversation(Base):
     __tablename__ = "conversations"
 
+    __table_args__ = (
+        UniqueConstraint('channel', 'session_key', name='uq_conversation_channel_session'),
+    )
+
     id = Column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     lead_id = Column(Uuid(as_uuid=True), ForeignKey("leads.id"), nullable=True)
     channel = Column(Enum(Channel), nullable=False)
@@ -53,15 +57,20 @@ class Conversation(Base):
     updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(IST), onupdate=lambda: datetime.now(IST))
 
     lead = relationship("Lead", back_populates="conversations")
-    messages = relationship("Message", back_populates="conversation")
+    messages = relationship("Message", back_populates="conversation", order_by="Message.sequence_number")
 
 
 class Message(Base):
     __tablename__ = "messages"
 
+    __table_args__ = (
+        UniqueConstraint('conversation_id', 'sequence_number', name='uq_message_conversation_sequence'),
+    )
+
     id = Column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     message_uuid = Column(Uuid(as_uuid=True), unique=True, nullable=False, default=uuid.uuid4)
     conversation_id = Column(Uuid(as_uuid=True), ForeignKey("conversations.id"), nullable=False)
+    sequence_number = Column(Integer, nullable=False)
     role = Column(Enum(SenderRole), nullable=False)
     channel = Column(Enum(Channel), nullable=False, default=Channel.website)
     external_message_id = Column(String(255), nullable=True, index=True, unique=True)

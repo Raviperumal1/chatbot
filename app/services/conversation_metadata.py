@@ -86,7 +86,7 @@ def get_or_migrate_metadata(conversation: Conversation) -> dict:
 
 def _sync_messages_and_summary(conversation: Conversation, meta: dict):
     """Rebuilds the messages array and summary directly from the relational data to keep the JSON perfectly synced."""
-    msgs = sorted(conversation.messages, key=lambda x: x.created_at.replace(tzinfo=None) if x.created_at else datetime.min)
+    msgs = sorted(conversation.messages, key=lambda x: x.sequence_number if x.sequence_number is not None else getattr(x, 'created_at', datetime.min).replace(tzinfo=None) if x.created_at else datetime.min)
     
     json_messages = []
     user_count = 0

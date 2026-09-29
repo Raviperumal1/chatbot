@@ -1,18 +1,21 @@
 version: "3.8"
 
 services:
-  postgres:
-    image: postgres:16
-    container_name: zenfuture_postgres
+  backend:
+    build: .
+    container_name: zenfuture_backend
     restart: unless-stopped
-    environment:
-      POSTGRES_USER: zenfuture
-      POSTGRES_PASSWORD: zenfuture
-      POSTGRES_DB: zenfuture_chatbot
     ports:
-      - "5432:5432"
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      # Override the DB URL inside docker to point to the host machine's existing MySQL database
+      - DATABASE_URL=mysql+pymysql://zenfuture_admin:ZenF@2025@host.docker.internal:3306/zenfuture_db
+      # Point Ollama to the host machine (if running native on host) or network
+      - OLLAMA_HOST=http://host.docker.internal:11434
     volumes:
-      - zenfuture_pg_data:/var/lib/postgresql/data
-
-volumes:
-  zenfuture_pg_data:
+      - ./chroma_store:/app/chroma_store
+    extra_hosts:
+      # This allows the container to resolve 'host.docker.internal' to the actual Linux host machine IP
+      - "host.docker.internal:host-gateway"

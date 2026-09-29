@@ -1,9 +1,25 @@
+import json
 import logging
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-)
+class JSONFormatter(logging.Formatter):
+    def format(self, record):
+        log_record = {
+            "time": self.formatTime(record, self.datefmt),
+            "level": record.levelname,
+            "name": record.name,
+            "message": record.getMessage()
+        }
+        if record.exc_info:
+            log_record["exc_info"] = self.formatException(record.exc_info)
+        return json.dumps(log_record)
+
+# Remove default handlers to replace with JSON handler
+logging.getLogger().handlers.clear()
+
+json_handler = logging.StreamHandler()
+json_handler.setFormatter(JSONFormatter())
+logging.basicConfig(level=logging.INFO, handlers=[json_handler])
+
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -14,7 +30,9 @@ from app.routers.v1 import conversations as v1_conversations
 
 from app.database import engine, Base
 from app import models
-Base.metadata.create_all(bind=engine)
+# Automatic table creation disabled for production.
+# Use Alembic for schema migrations instead: `alembic upgrade head`
+# Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
     title="Zenfuture Technologies - AI Chatbot Backend",
@@ -27,7 +45,13 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "https://zenfuture.in", 
+        "https://www.zenfuture.in",
+        "http://localhost:3000" ,# for local dev
+        "http://localhost/zenfuture/",
+        "*"
+    ],
     allow_methods=["*"],
     allow_headers=["*"],
 )

@@ -58,6 +58,26 @@ class ConversationDetail(BaseModel):
     class Config:
         from_attributes = True
         populate_by_name = True
+class AdminConversationDetail(BaseModel):
+    id: UUID
+    visitor_id: Optional[str] = None
+    user_id: Optional[UUID] = None
+    user_name: Optional[str] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    channel: str
+    message_count: int = 0
+    last_message: Optional[str] = None
+    last_message_at: Optional[datetime] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+class ConversationWithMessagesDetail(AdminConversationDetail):
+    messages: List[MessageDetail] = []
+    
+    class Config:
+        from_attributes = True
 
 class ConversationMessagesResponse(BaseModel):
     messages: List[MessageDetail]

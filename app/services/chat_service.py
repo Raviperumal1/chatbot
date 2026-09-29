@@ -1,6 +1,7 @@
 import uuid
 from datetime import datetime, timezone, timedelta
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 
 from app.models import Channel, Conversation, Message, SenderRole, Lead
 from app.chat.lead_capture import process_lead_capture, get_session, Stage
@@ -9,6 +10,7 @@ from app.services.conversation_metadata import increment_message_counts, set_cha
 from app.rag.retriever import get_context
 from app.llm.ollama_client import generate_reply, generate_reply_stream
 import os
+import time
 
 IST = timezone(timedelta(hours=5, minutes=30))
 COMPANY_NAME = os.getenv("COMPANY_NAME", "Zenfuture Technologies")
@@ -45,7 +47,7 @@ class ChatService:
         msgs = (
             db.query(Message)
             .filter(Message.conversation_id == conversation_id)
-            .order_by(Message.created_at.desc())
+            .order_by(Message.sequence_number.desc())
             .limit(limit)
             .all()
         )
@@ -54,6 +56,14 @@ class ChatService:
             role = "assistant" if m.role == SenderRole.bot else "user"
             history.append({"role": role, "content": m.content})
         return history
+
+    @staticmethod
+    def get_next_sequence_number(db: Session, conversation_id) -> int:
+        db.query(Conversation).filter(Conversation.id == conversation_id).with_for_update().first()
+        last_seq = db.query(func.max(Message.sequence_number)).filter(
+            Message.conversation_id == conversation_id
+        ).scalar()
+        return (last_seq or 0) + 1
 
     @staticmethod
     def handle_incoming_message(
@@ -77,24 +87,28 @@ class ChatService:
         convo = ChatService.get_or_create_conversation(db, channel, session_key, language)
         history = ChatService.get_conversation_history(db, convo.id, limit=10)
 
-        # Save User Message
+        # Save User Message if not empty
         user_msg_id = uuid.uuid4()
-        user_msg = Message(
-            message_uuid=user_msg_id,
-            conversation_id=convo.id,
-            role=SenderRole.user,
-            channel=channel,
-            external_message_id=external_message_id,
-            content=user_message,
-        )
-        db.add(user_msg)
-        db.flush()
-        increment_message_counts(convo, SenderRole.user)
-        convo.last_message_at = datetime.now(IST)
-        convo.updated_at = datetime.now(IST)
-        db.commit()
+        user_message_str = user_message.strip()
+        if user_message_str:
+            seq = ChatService.get_next_sequence_number(db, convo.id)
+            user_msg = Message(
+                message_uuid=user_msg_id,
+                conversation_id=convo.id,
+                sequence_number=seq,
+                role=SenderRole.user,
+                channel=channel,
+                external_message_id=external_message_id,
+                content=user_message_str,
+            )
+            db.add(user_msg)
+            db.flush()
+            increment_message_counts(convo, SenderRole.user)
+            convo.last_message_at = datetime.now(IST)
+            convo.updated_at = datetime.now(IST)
+            db.commit()
 
-        metadata_dict = {"conversation_id": str(convo.id), "user_message_id": str(user_msg_id)}
+        metadata_dict = {"conversation_id": str(convo.id), "user_message_id": str(user_msg_id) if user_message_str else None}
 
         # Workflow execution
         reply_text = ""
@@ -131,14 +145,16 @@ class ChatService:
                 if _mark_notified_if_new(session_key):
                     send_enquiry_email_async(session, user_message)
 
-            import time
-            start_time = time.time()
-            context = get_context(user_message)
-            reply_text = generate_reply(user_message, context, history=history)
-            duration_ms = int((time.time() - start_time) * 1000)
+            if not still_capturing:
+                start_time = time.time()
+                context = get_context(user_message)
+                reply_text = generate_reply(user_message, context, history=history)
+                duration_ms = int((time.time() - start_time) * 1000)
+            else:
+                duration_ms = 0
+                context = ""
         else:
             # WhatsApp or other channel skips lead capture
-            import time
             start_time = time.time()
             context = get_context(user_message)
             reply_text = generate_reply(user_message, context, history=history)
@@ -163,9 +179,11 @@ class ChatService:
 
         # Save Assistant Message
         bot_msg_id = uuid.uuid4()
+        seq = ChatService.get_next_sequence_number(db, convo.id)
         bot_msg = Message(
             message_uuid=bot_msg_id,
             conversation_id=convo.id,
+            sequence_number=seq,
             role=SenderRole.bot,
             channel=channel,
             content=reply_text,
@@ -197,9 +215,11 @@ class ChatService:
 
         if user_message.strip():
             user_msg_id = uuid.uuid4()
+            seq = ChatService.get_next_sequence_number(db, convo.id)
             user_msg = Message(
                 message_uuid=user_msg_id,
                 conversation_id=convo.id,
+                sequence_number=seq,
                 role=SenderRole.user,
                 channel=channel,
                 external_message_id=external_message_id,
@@ -216,9 +236,11 @@ class ChatService:
             reply, still_capturing = process_lead_capture(convo, user_message, COMPANY_NAME)
             if still_capturing:
                 bot_msg_id = uuid.uuid4()
+                seq = ChatService.get_next_sequence_number(db, convo.id)
                 bot_msg = Message(
                     message_uuid=bot_msg_id,
                     conversation_id=convo.id,
+                    sequence_number=seq,
                     role=SenderRole.bot,
                     channel=channel,
                     content=reply,
@@ -254,46 +276,50 @@ class ChatService:
             if _mark_notified_if_new(session_key):
                 send_enquiry_email_async(session, user_message)
 
-        import time
         start_time = time.time()
         context = get_context(user_message)
         full_reply_parts = []
-        for chunk in generate_reply_stream(user_message, context, history=history):
-            full_reply_parts.append(chunk)
-            yield chunk
-
-        duration_ms = int((time.time() - start_time) * 1000)
-        full_reply = "".join(full_reply_parts).strip()
-        bot_msg_id = uuid.uuid4()
-        
-        msg_metadata = {
-            "intent": "enquiry",
-            "response_type": "rag" if context else "standard",
-            "model": {
-                "provider": "ollama",
-                "name": "llama3.2:3b"
-            },
-            "rag": {
-                "enabled": True,
-                "documents_retrieved": len(context.split("[Source:")) - 1 if context else 0
-            },
-            "generation": {
-                "streamed": True,
-                "duration_ms": duration_ms
-            }
-        }
-        
-        bot_msg = Message(
-            message_uuid=bot_msg_id,
-            conversation_id=convo.id,
-            role=SenderRole.bot,
-            channel=channel,
-            content=full_reply,
-            message_metadata=msg_metadata
-        )
-        db.add(bot_msg)
-        db.flush()
-        increment_message_counts(convo, SenderRole.bot)
-        convo.last_message_at = datetime.now(IST)
-        convo.updated_at = datetime.now(IST)
-        db.commit()
+        try:
+            for chunk in generate_reply_stream(user_message, context, history=history):
+                full_reply_parts.append(chunk)
+                yield chunk
+        finally:
+            duration_ms = int((time.time() - start_time) * 1000)
+            full_reply = "".join(full_reply_parts).strip()
+            
+            if full_reply:
+                bot_msg_id = uuid.uuid4()
+                
+                msg_metadata = {
+                    "intent": "enquiry",
+                    "response_type": "rag" if context else "standard",
+                    "model": {
+                        "provider": "ollama",
+                        "name": "llama3.2:3b"
+                    },
+                    "rag": {
+                        "enabled": True,
+                        "documents_retrieved": len(context.split("[Source:")) - 1 if context else 0
+                    },
+                    "generation": {
+                        "streamed": True,
+                        "duration_ms": duration_ms
+                    }
+                }
+                
+                seq = ChatService.get_next_sequence_number(db, convo.id)
+                bot_msg = Message(
+                    message_uuid=bot_msg_id,
+                    conversation_id=convo.id,
+                    sequence_number=seq,
+                    role=SenderRole.bot,
+                    channel=channel,
+                    content=full_reply,
+                    message_metadata=msg_metadata
+                )
+                db.add(bot_msg)
+                db.flush()
+                increment_message_counts(convo, SenderRole.bot)
+                convo.last_message_at = datetime.now(IST)
+                convo.updated_at = datetime.now(IST)
+                db.commit()

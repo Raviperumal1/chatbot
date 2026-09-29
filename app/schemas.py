@@ -46,3 +46,24 @@ class LeadDetailOut(LeadOut):
 class ChatLoadResponse(BaseModel):
     lead: Optional[dict] = None
     conversation: Optional[dict] = None
+
+class LeadListOut(BaseModel):
+    id: UUID
+    name: Optional[str]
+    email: Optional[str]
+    phone: Optional[str]
+    visitor_ids: List[str] = []
+    channels: List[str] = []
+    conversation_count: int = 0
+    last_conversation_at: Optional[datetime] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+class PaginatedLeadOut(BaseModel):
+    items: List[LeadListOut]
+    page: int
+    limit: int
+    total: int
+    total_pages: int
